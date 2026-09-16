@@ -24,7 +24,8 @@ TRACE = bool(os.environ.get("TRACE"))
 
 
 ROVER_SPEED = 1.15
-SEARCH_SPEED = 2.4       # while searching, still out-pace the rover
+SEARCH_SPEED = 2.4
+TARGET_MAX_SPEED = 1.6   # the rover cannot move faster than this; clamp the estimate       # while searching, still out-pace the rover
 
 
 def rover_pose(t):
@@ -74,6 +75,24 @@ class Guidance:
         self.commit = None
         self.commit_left = 0
         self.search_yaw = None
+        # world-frame estimate of the target, built from our own pose + the camera
+        # bearing/range. No ground truth; this is what the aircraft could work out.
+        self.tgt_w = None
+        self.tgt_v = np.zeros(2)
+        self.tgt_t = 0.0
+        self.tgt_hist = []
+
+    def _search_heading(self, yaw, t, pos):
+        """Where the target probably is now: last fix, carried forward by the
+        velocity we observed while we could still see it."""
+        if self.tgt_w is None or pos is None:
+            return self.search_yaw if self.search_yaw is not None else yaw
+        lead = float(np.clip(t - self.tgt_t, 0.0, 5.0))   # do not extrapolate forever
+        aim = self.tgt_w + self.tgt_v * lead
+        d = aim - pos[:2]
+        if np.linalg.norm(d) < 0.5:
+            return yaw
+        return float(np.arctan2(d[1], d[0]))
 
     def _open_side(self, sec, left):
         """Bearing of the more open sector on the requested side."""
@@ -81,7 +100,7 @@ class Guidance:
         best = max(names, key=lambda n: sec[n])
         return self.eye.sector_bearing(best)
 
-    def __call__(self, scene, judg, yaw, z, use_jev, fresh=False):
+    def __call__(self, scene, judg, yaw, z, use_jev, fresh=False, t=0.0, pos=None):
         if self.yaw_sp is None:
             self.yaw_sp = yaw
         sec = scene["sector_range_m"]
@@ -92,6 +111,24 @@ class Guidance:
             rng = tgt["range_m"]
             self.lost_for = 0.0
             self.search_yaw = None
+            if fresh and pos is not None:
+                b = self.last_bearing
+                c, s = np.cos(yaw), np.sin(yaw)
+                off = np.array([rng * np.cos(b), rng * np.sin(b)])
+                w = pos[:2] + np.array([c * off[0] - s * off[1], s * off[0] + c * off[1]])
+                self.tgt_w, self.tgt_t = w, t
+                # Differentiate over a ~1s baseline, not over one camera frame:
+                # a 0.07s interval turns pixel noise into tens of m/s.
+                self.tgt_hist.append((t, w))
+                self.tgt_hist = [(ti, wi) for ti, wi in self.tgt_hist if t - ti <= 1.2]
+                if len(self.tgt_hist) >= 2:
+                    (t0, w0), (t1, w1) = self.tgt_hist[0], self.tgt_hist[-1]
+                    if t1 - t0 >= 0.4:
+                        v = (w1 - w0) / (t1 - t0)
+                        sp = np.linalg.norm(v)
+                        if sp > TARGET_MAX_SPEED:          # cannot be faster than the rover
+                            v = v / sp * TARGET_MAX_SPEED
+                        self.tgt_v = 0.6 * self.tgt_v + 0.4 * v
         else:
             rng = STANDOFF + 1.5
             self.lost_for = tgt["unseen_for_s"] or 0.0
@@ -157,9 +194,10 @@ class Guidance:
             elif mv == "reacquire":
                 if fresh:
                     self.sweep += 0.35
-                    self.yaw_sp = (self.search_yaw if self.search_yaw is not None else yaw) + 0.7 * np.sin(self.sweep)
+                    self.yaw_sp = self._search_heading(yaw, t, pos) + 0.45 * np.sin(self.sweep)
                 absolute_yaw = self.yaw_sp
-                fwd, slide, turn_bias = 0.3, 0.0, 0.0
+                # must out-run the rover, or a lost target can never be regained
+                fwd, slide, turn_bias = SEARCH_SPEED, 0.0, 0.0
             else:
                 acted = False                      # hold_course changes nothing
             if judg["risk"] > THRESH["risk_slow_down"]:
@@ -168,7 +206,7 @@ class Guidance:
             # baseline search: never keep flying a bearing we can no longer see
             if fresh:
                 self.sweep += 0.3
-                self.yaw_sp = (self.search_yaw if self.search_yaw is not None else yaw) + 0.5 * np.sin(self.sweep)
+                self.yaw_sp = self._search_heading(yaw, t, pos) + 0.35 * np.sin(self.sweep)
             absolute_yaw = self.yaw_sp
             fwd, slide = SEARCH_SPEED, 0.0
 
@@ -275,7 +313,7 @@ def episode(seed=0, seconds=35.0, use_jev=True, video=None, hz=None, budget=None
                              scene["sectors_blocked_of_5"], scene["nearest_obstacle_m"],
                              scene["obstruction_taller_than_camera_can_see"], scene["target"]["visible"]),
                           flush=True)
-            v_des, yaw_cmd, acted, reflex = guide(scene, judg, yaw, pos[2], use_jev, fresh)
+            v_des, yaw_cmd, acted, reflex = guide(scene, judg, yaw, pos[2], use_jev, fresh, t, pos)
             fresh = False
             jev_steps += acted
             reflex_steps += reflex

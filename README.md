@@ -67,27 +67,30 @@ an obstacle is not something it can express.
 
 | | baseline (no Jev) | Jev engaged |
 |---|---|---|
-| furthest point reached | 17.6 / 17.5 / 17.4 m | **55.2 m (all five stations)** |
-| target kept in view | ~19% | **57%** |
-| time pinned in reflex | 60-65% | **9.5%** |
-| collisions | 0 / 0 / 0 | 1 |
+| furthest point reached | 17.7 / 17.7 / 17.7 m | **77.5 m (whole course)** |
+| target kept in view | ~19% | **82%** |
+| time pinned in reflex | 65-71% | **9%** |
+| collisions | 0 / 0 / 0 | **0** |
 
-The baseline stops dead at station 2 every time. With Jev the drone clears the
-whole course in about 41 s at up to 3.6 m/s, with the rover in view at every
-station:
+The baseline stops dead at station 2 every single time. With Jev the drone
+clears the entire course in about 47 s at up to 3.6 m/s:
 
 ```
-x=19  beam0       t=14.9  z=3.0   climbed over
+x=19  beam0       t=15.7  z=3.0   climbed over
 x=26  turnstiles  t=20.3  z=1.6   timed the sweeping arms
-x=38  GATE        t=31.1  z=1.6   threaded the sliding 3.2 m gap
-x=44  beam1       t=37.1  z=2.8   climbed over
-x=50  cluster     t=41.1  z=1.6   through the pillars
+x=38  GATE        t=31.3  z=1.6   threaded the sliding 3.2 m gap
+x=44  beam1       t=36.8  z=2.8   climbed over
+x=50  cluster     t=41.3  z=1.6   lost the rover in the pillars
+x=58  exit        t=46.6          re-acquired it and closed back to 3.7 m
 ```
 
 ![threading the sliding gate](docs/gate.png)
 
-Judgments used across the run: 14 gap_left, 12 gap_right, 10 hold_course,
-7 climb, 6 reacquire, 1 brake. 121 calls, 0.113 s median latency.
+80 calls over 65 s, 0.11 s median latency, 96k tokens.
+
+The cluster is worth noting: the drone genuinely loses the rover there, flies to
+where it estimates the rover has got to, and picks it back up. That recovery is
+the difference between a demo and a system.
 
 **Honest caveats.** The Jev column is a single 65 s run, not a seed-matched
 average. On an earlier, simpler arena a matched 3-seed comparison showed **no
@@ -203,6 +206,14 @@ cost real time:
 - Anything you have already climbed over is not a threat. Obstacle pixels have
   to be filtered by height relative to the aircraft, or the reflex shoves you
   back off the wall you just cleared.
+- **A lost target needs a world-frame estimate, not a bearing.** A camera
+  bearing is meaningless the moment the target leaves frame, so the drone swept
+  blindly around a stale heading and sat still while the rover drove away. Fix:
+  convert bearing+range+own pose into a world position, carry it forward with the
+  observed velocity, and fly there. Measured against ground truth the estimate is
+  good to 0.14 m and 0.12 m/s - and it must be differentiated over ~1 s, because
+  over one 0.07 s camera frame pixel noise becomes tens of m/s and the drone
+  extrapolates itself off the map.
 - **A reflex must brake for what is in your path, not what is beside you.** Using
   the nearest obstacle across the whole forward cone meant walls 1.2 m to either
   side triggered a permanent brake, so any gap narrower than 2x the reflex radius
