@@ -17,7 +17,7 @@ MODEL = "jev-latest"
 THRESHOLDS = {
     "stale_after_s": 1.5,     # ignore a judgment older than this; the world moved on
     "risk_slow_down": 1.45,   # score above which we bleed speed regardless of maneuver
-    "call_hz": 2.5,           # upper bound on how often we ask
+    "call_hz": 3.0,           # upper bound on how often we ask
     "call_budget": 160,      # hard cap per episode, so a bug cannot run up a bill
     "consult_within_m": 4.0,  # only ask when something is actually in the way...
     "consult_lost_s": 1.0,    # ...or the target has been missing this long
@@ -34,7 +34,7 @@ AIRCRAFT = {
     "cruise_altitude_m": 1.6,
     "can_climb_to_m": 3.0,
     "climb_takes_about_s": 1.5,
-    "top_speed_mps": 2.6,
+    "top_speed_mps": 3.6,
     "note": "All distances are from a forward camera. 25 m means nothing was detected.",
 }
 

@@ -23,8 +23,8 @@ REFLEX_M = 2.2           # code-owned: below this, Jev's opinion is irrelevant
 TRACE = bool(os.environ.get("TRACE"))
 
 
-ROVER_SPEED = 0.80
-SEARCH_SPEED = 1.4       # while searching, still out-pace the rover
+ROVER_SPEED = 1.15
+SEARCH_SPEED = 2.4       # while searching, still out-pace the rover
 
 
 def rover_pose(t):
@@ -49,7 +49,7 @@ def drive_course(m, d, t):
     # the gap tracks the rover, so the leader always fits; the drone trails by
     # several seconds and therefore meets the gap somewhere else entirely
     c = 2.0 * np.sin(0.26 * t)
-    for name, off in (("gateL", 31.2), ("gateR", -31.2)):
+    for name, off in (("gateL", 31.6), ("gateR", -31.6)):
         mid = m.body(name).mocapid[0]
         p = d.mocap_pos[mid].copy()
         p[1] = c + off
@@ -102,7 +102,7 @@ class Guidance:
         # re-derived each camera frame, so nothing can accumulate into a spin.
         yaw_rel = float(np.clip(self.last_bearing, -0.6, 0.6)) if tgt["visible"] else 0.0
         absolute_yaw = None
-        fwd = float(np.clip(1.0 * (rng - STANDOFF) + 0.95, 0.0, 2.2))
+        fwd = float(np.clip(1.15 * (rng - STANDOFF) + 1.35, 0.0, 3.6))
 
         self.climb_hold = max(0, self.climb_hold - 1)
         alt_sp = CLIMB_ALT if self.climb_hold else CRUISE_ALT
@@ -173,7 +173,8 @@ class Guidance:
             fwd, slide = SEARCH_SPEED, 0.0
 
         # --- hard reflex: code overrides everything, Jev included ------------------
-        near, nb = scene["nearest_obstacle_m"], np.deg2rad(scene["nearest_bearing_deg"])
+        # Reflex on what is in the path, not on what is merely alongside.
+        near, nb = scene["path_ahead_m"], np.deg2rad(scene["nearest_bearing_deg"])
         reflex = near < REFLEX_M
         if reflex:
             side = 1.0 if left_room > right_room else -1.0

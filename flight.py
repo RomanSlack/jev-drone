@@ -23,8 +23,8 @@ class Pilot:
         self.kv = np.array([2.6, 2.6, 4.0])          # velocity -> accel
         self.kR = self.inertia * 190.0               # attitude stiffness
         self.kw = self.inertia * 26.0                # attitude damping
-        self.max_tilt = np.deg2rad(25.0)
-        self.max_acc = 5.0            # slew the velocity command; step changes tumble it
+        self.max_tilt = np.deg2rad(28.0)
+        self.max_acc = 7.5            # slew the velocity command; step changes tumble it
         self.v_cmd = np.zeros(3)
         # thrust-mixing matrix: [Fz, Mx, My, Mz] = MIX @ f
         self.mix_inv = np.linalg.inv(np.array([
@@ -189,8 +189,12 @@ class Eye:
                       "pixels": 0, "unseen_for_s": gap}
 
         blocked = sum(1 for v in sectors.values() if v < 3.0)
+        # What lies in the PATH, as opposed to merely beside us. Braking for walls
+        # you are flying between makes narrow gaps impossible to thread.
+        path_ahead = round(min(sectors["left"], sectors["center"], sectors["right"]), 2)
         return {"sector_range_m": sectors,
                 "sectors_blocked_of_5": blocked,
+                "path_ahead_m": path_ahead,
                 "obstruction_top_above_drone_m": top_dz,
                 "obstruction_taller_than_camera_can_see": runs_off_top,
                 "nearest_obstacle_m": round(nearest, 2),

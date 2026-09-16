@@ -47,10 +47,10 @@
     </body>
 
     <!-- 4. sliding gate: two shutters leaving a gap that moves -->
-    <body name="gateL" mocap="true" pos="38 31.2 4.5">
+    <body name="gateL" mocap="true" pos="38 31.6 4.5">
       <geom name="gateL_geom" type="box" material="gate" size=".25 30.0 4.5"/>
     </body>
-    <body name="gateR" mocap="true" pos="38 -31.2 4.5">
+    <body name="gateR" mocap="true" pos="38 -31.6 4.5">
       <geom name="gateR_geom" type="box" material="gate" size=".25 30.0 4.5"/>
     </body>
 

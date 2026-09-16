@@ -53,7 +53,7 @@ Five stations, each breaking a different assumption:
 1. **Slalom** - ordinary steering around pillars
 2. **Low beam** - spans the whole corridor. No lateral gap exists at any width, so "go around" is not available. It must be flown *over*.
 3. **Turnstiles** - arms sweeping across the lane. Moving, must be timed.
-4. **Sliding gate** - a 2.4 m gap that slides sideways. Too tall to climb, so it must be threaded.
+4. **Sliding gate** - a 3.2 m gap that slides sideways. Too tall to climb, so it must be threaded.
 5. **Cluster** - dense pillars
 
 ![chasing through the course](docs/chase.png)
@@ -67,13 +67,27 @@ an obstacle is not something it can express.
 
 | | baseline (no Jev) | Jev engaged |
 |---|---|---|
-| furthest point reached | 16.9 / 16.7 / 16.9 m | **35.8 m** |
-| target kept in view | ~28% | **60.6%** |
-| collisions | 1 / 1 / 1 | **0** |
-| time pinned in reflex | 42-77% | **13%** |
+| furthest point reached | 17.6 / 17.5 / 17.4 m | **55.2 m (all five stations)** |
+| target kept in view | ~19% | **57%** |
+| time pinned in reflex | 60-65% | **9.5%** |
+| collisions | 0 / 0 / 0 | 1 |
 
-Jev clears station 2 by choosing `climb` at p=0.93-0.96 and threads the gate by
-choosing a gap.
+The baseline stops dead at station 2 every time. With Jev the drone clears the
+whole course in about 41 s at up to 3.6 m/s, with the rover in view at every
+station:
+
+```
+x=19  beam0       t=14.9  z=3.0   climbed over
+x=26  turnstiles  t=20.3  z=1.6   timed the sweeping arms
+x=38  GATE        t=31.1  z=1.6   threaded the sliding 3.2 m gap
+x=44  beam1       t=37.1  z=2.8   climbed over
+x=50  cluster     t=41.1  z=1.6   through the pillars
+```
+
+![threading the sliding gate](docs/gate.png)
+
+Judgments used across the run: 14 gap_left, 12 gap_right, 10 hold_course,
+7 climb, 6 reacquire, 1 brake. 121 calls, 0.113 s median latency.
 
 **Honest caveats.** The Jev column is a single 65 s run, not a seed-matched
 average. On an earlier, simpler arena a matched 3-seed comparison showed **no
@@ -82,6 +96,22 @@ cost target visibility. Run-to-run variance is large. The claim this repo
 supports is narrow and specific: *the baseline is structurally incapable of the
 maneuver, and Jev supplies it.* It is not "the model makes the drone better at
 everything".
+
+### What is and is not the model
+
+Worth being precise, because it is easy to overclaim:
+
+| layer | who does it | rate |
+|---|---|---|
+| **Awareness** - what is out there, how far, where is the target | numpy on depth + segmentation. **Zero Jev.** | 15 Hz |
+| Flight control - attitude, thrust, mixing | geometric controller. **Zero Jev.** | 500 Hz |
+| Safety reflex - do not hit that | code, and it **overrides** Jev | 50 Hz |
+| **Tactical choice** - over it? around it? which side? is it lost? | **100% Jev** | ~3 Hz |
+
+Code decides *what is there*; Jev decides *what to do about it*. Jev cannot see
+- it takes JSON, not pixels. The defensible claim is "a judgment model in a
+live control loop at 3 Hz with 0.11 s median latency", not "the model does the
+perception".
 
 ### The judgments themselves are good
 
@@ -173,6 +203,11 @@ cost real time:
 - Anything you have already climbed over is not a threat. Obstacle pixels have
   to be filtered by height relative to the aircraft, or the reflex shoves you
   back off the wall you just cleared.
+- **A reflex must brake for what is in your path, not what is beside you.** Using
+  the nearest obstacle across the whole forward cone meant walls 1.2 m to either
+  side triggered a permanent brake, so any gap narrower than 2x the reflex radius
+  was physically impossible to enter. The gate was not hard, it was forbidden.
+  Splitting out `path_ahead_m` (the middle sectors only) fixed it.
 - A wide lens helps you *see* the target but ruins threat assessment, because
   things 60 deg off the nose were never in the way. Separate the tracking FOV
   from the threat cone.
