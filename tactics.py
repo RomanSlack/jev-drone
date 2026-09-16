@@ -52,11 +52,10 @@ MANEUVERS = {
         "Something blocks the way ahead, and the right sectors show clearly more free "
         "space than the left. Steer around it to the right."),
     "climb": (
-        "The obstruction ahead is LOW: its top edge is visible to the camera and only a "
-        "short distance above the drone (obstruction_top_above_drone_m is small and "
-        "obstruction_taller_than_camera_can_see is false). This is the right answer when "
-        "every sector is blocked, because that means there is no gap to steer through, "
-        "but the thing is short enough to simply fly over."),
+        "The obstruction ahead is LOW: free_ahead_above_m is much larger than "
+        "free_ahead_level_m, so there is clear air over the top of it. This is the right "
+        "answer when every sector is blocked, because that means there is no gap to "
+        "steer through, but the thing is short enough to simply fly over."),
     "brake": (
         "Close to something on several sides and no option is clearly better. Bleed off "
         "speed and hold until the picture improves."),
@@ -93,7 +92,7 @@ def decision_needed(scene):
     """Code decides WHEN there is a judgment worth paying for. On an empty corridor
     with the target in view there is nothing to decide, so we do not ask."""
     return (scene["nearest_obstacle_m"] < THRESHOLDS["consult_within_m"]
-            or scene["sectors_blocked_of_5"] >= 1
+            or scene["sectors_blocked"] >= 1
             or (scene["target"]["unseen_for_s"] or 0.0) >= THRESHOLDS["consult_lost_s"])
 
 
@@ -143,8 +142,8 @@ class Tactician:
         """Coarse fingerprint: only re-ask when the situation is materially new."""
         t = scene["target"]
         return (
-            scene["sectors_blocked_of_5"],
-            bool(scene["obstruction_taller_than_camera_can_see"]),
+            scene["sectors_blocked"],
+            min(int(scene["free_ahead_above_m"] / 3.0), 8),
             tuple(min(int(v / 1.5), 6) for v in scene["sector_range_m"].values()),
             min(int(scene["nearest_obstacle_m"] / 1.5), 6),
             t["visible"],

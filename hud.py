@@ -103,31 +103,29 @@ class Hud:
         # ---- free space --------------------------------------------------
         dr.text((x0, y), "FREE SPACE BY SECTOR", font=font(11, True), fill=CYAN)
         y += 18
-        for name, rng in scene["sector_range_m"].items():
-            col = RED if rng < 2.0 else (ACCENT if rng < 4.5 else CYAN)
-            dr.text((x0, y), name.replace("_", " ")[:9].ljust(9), font=font(11), fill=DIM)
-            self._bar(dr, x0 + 78, y + 2, w - 130, 8, rng / 12.0, col)
-            dr.text((x0 + w - 44, y), f"{min(rng,99):5.1f}", font=font(11), fill=TEXT)
-            y += 16
-        # --- the vertical read that decides over-vs-around ------------------
-        y += 6
-        blocked = scene["sectors_blocked_of_5"]
-        top = scene["obstruction_top_above_drone_m"]
-        taller = scene["obstruction_taller_than_camera_can_see"]
-        bc = RED if blocked >= 4 else (ACCENT if blocked else DIM)
-        dr.text((x0, y), "blocked".ljust(9), font=font(11), fill=DIM)
-        for k in range(5):
-            col = bc if k < blocked else (34, 41, 49)
-            dr.rectangle([x0 + 78 + k * 20, y + 2, x0 + 78 + k * 20 + 15, y + 10], fill=col)
-        dr.text((x0 + w - 44, y), "%d/5" % blocked, font=font(11), fill=TEXT)
-        y += 17
-        if taller is True:
-            vtxt, vcol = "taller than view -> go around", DIM
-        elif top is not None:
-            vtxt, vcol = "top edge %+.2fm -> can fly over" % top, GREEN
-        else:
-            vtxt, vcol = "nothing ahead", DIM
-        dr.text((x0, y), vtxt, font=font(11), fill=vcol)
+        secs = scene["sector_range_m"]
+        step = 15 if len(secs) <= 5 else 12
+        for name, rng in secs.items():
+            col = RED if rng < 4.0 else (ACCENT if rng < 10.0 else CYAN)
+            dr.text((x0, y), name.replace("_", " ")[:11].ljust(11), font=font(10), fill=DIM)
+            self._bar(dr, x0 + 84, y + 2, w - 136, 7, rng / 30.0, col)
+            dr.text((x0 + w - 44, y), f"{min(rng,99):5.1f}", font=font(10), fill=TEXT)
+            y += step
+        # --- vertical free space: what decides over / under / around ----------
+        y += 8
+        dr.text((x0, y), "FREE SPACE AHEAD, STACKED", font=font(11, True), fill=CYAN)
+        y += 16
+        for lbl, key in (("if we climb", "free_ahead_above_m"),
+                         ("straight on", "free_ahead_level_m"),
+                         ("if we dive", "free_ahead_below_m")):
+            v = scene.get(key)
+            if v is None:
+                continue
+            col = RED if v < 5.0 else (ACCENT if v < 12.0 else GREEN)
+            dr.text((x0, y), lbl.ljust(11), font=font(10), fill=DIM)
+            self._bar(dr, x0 + 84, y + 2, w - 136, 7, v / 30.0, col)
+            dr.text((x0 + w - 44, y), f"{v:5.1f}", font=font(10), fill=TEXT)
+            y += 14
         y += 18
         dr.line([x0, y, x0 + w, y], fill=LINE)
 
@@ -137,8 +135,28 @@ class Hud:
         if judg["source"] != "jev":
             dr.text((x0 + w - 62, y), "FALLBACK", font=font(11, True), fill=DIM)
         y += 22
+        if "steer" in judg:                       # graded-score navigator
+            for lbl, val, lo, hi, a, b in (
+                    ("steer", judg["steer"], 0.0, 4.0, "hard left", "hard right"),
+                    ("height", judg["height"], 0.0, 4.0, "dive", "climb")):
+                dr.text((x0, y), lbl.upper(), font=font(11, True), fill=ACCENT)
+                dr.text((x0 + 70, y), a, font=font(9), fill=DIM)
+                dr.text((x0 + w - 56, y), b, font=font(9), fill=DIM)
+                y += 14
+                bx, bw = x0, w
+                dr.rectangle([bx, y, bx + bw, y + 12], fill=(28, 34, 41))
+                dr.line([bx + bw // 2, y - 2, bx + bw // 2, y + 14], fill=(70, 82, 95))
+                frac = (val - lo) / (hi - lo)
+                cx = bx + int(bw * min(max(frac, 0.0), 1.0))
+                mid = bx + bw // 2
+                dr.rectangle([min(cx, mid), y, max(cx, mid), y + 12], fill=ACCENT)
+                dr.ellipse([cx - 6, y - 2, cx + 6, y + 14], fill=(255, 210, 120))
+                dr.text((x0 + w - 40, y + 16), "%.2f" % val, font=font(10), fill=TEXT)
+                y += 34
+            y += 4
         probs = judg.get("probabilities") or {}
-        order = ["hold_course", "gap_left", "gap_right", "climb", "brake", "reacquire"]
+        order = [k for k in ("hold_course", "gap_left", "gap_right", "climb", "dive",
+                             "brake", "reacquire") if k in probs]
         for k in order:
             p = probs.get(k, 0.0)
             self.smooth[k] = 0.65 * self.smooth.get(k, 0.0) + 0.35 * p   # ease the bars
@@ -152,11 +170,11 @@ class Hud:
             y += 20
         y += 6
 
-        for label, val, vmax, col in [
-            ("risk", judg["risk"], 2.0, RED),
-            ("confidence", judg["confidence"], 1.0, GREEN),
-            ("target lost", judg["target_truly_lost"], 1.0, ACCENT),
-        ]:
+        meters = [("risk", judg["risk"], 2.0, RED),
+                  ("confidence", judg.get("confidence", 0.0), 1.0, GREEN)]
+        if "target_truly_lost" in judg:
+            meters.append(("target lost", judg["target_truly_lost"], 1.0, ACCENT))
+        for label, val, vmax, col in meters:
             dr.text((x0, y), label.ljust(11), font=font(11), fill=DIM)
             self._bar(dr, x0 + 104, y + 2, w - 156, 8, val / vmax, col)
             dr.text((x0 + w - 40, y), f"{val:.2f}", font=font(11), fill=TEXT)

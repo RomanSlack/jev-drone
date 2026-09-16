@@ -181,11 +181,9 @@ class Guidance:
                 if not tgt["visible"]:             # nothing to point at, so face the gap
                     yaw_rel = self._open_side(sec, left)
                 fwd = max(fwd, 0.7)
-            elif (mv == "climb" and scene["sectors_blocked_of_5"] >= 4
-                  and scene["obstruction_taller_than_camera_can_see"] is False
-                  and scene["obstruction_top_above_drone_m"] is not None
-                  # only commit to going over it if we can actually get over it
-                  and z + scene["obstruction_top_above_drone_m"] + 0.35 <= CLIMB_ALT):
+            # only commit to going over it if there is demonstrably clear air up there
+            elif (mv == "climb" and scene["sectors_blocked"] >= 4
+                  and scene["free_ahead_above_m"] > 2.2 * scene["free_ahead_level_m"]):
                 self.climb_hold = THRESH["climb_steps"]
                 alt_sp = CLIMB_ALT
                 fwd, slide, turn_bias = min(fwd, 0.5), 0.0, 0.0
@@ -310,8 +308,8 @@ def episode(seed=0, seconds=35.0, use_jev=True, video=None, hz=None, budget=None
                     print("  t=%5.1f %-11s p=%.2f risk=%.2f lost=%.2f | pos=(%.1f,%.1f,%.1f) blk=%d/5 near=%.2f tall=%s vis=%s"
                           % (t, judg["maneuver"], (judg.get("probabilities") or {}).get(judg["maneuver"], 0),
                              judg["risk"], judg["target_truly_lost"], pos[0], pos[1], pos[2],
-                             scene["sectors_blocked_of_5"], scene["nearest_obstacle_m"],
-                             scene["obstruction_taller_than_camera_can_see"], scene["target"]["visible"]),
+                             scene["sectors_blocked"], scene["nearest_obstacle_m"],
+                             scene["free_ahead_above_m"], scene["target"]["visible"]),
                           flush=True)
             v_des, yaw_cmd, acted, reflex = guide(scene, judg, yaw, pos[2], use_jev, fresh, t, pos)
             fresh = False
@@ -330,7 +328,7 @@ def episode(seed=0, seconds=35.0, use_jev=True, video=None, hz=None, budget=None
 
         standoffs.append(float(np.linalg.norm(pos - rover_pose(t))))
         max_x = max(max_x, float(pos[0]))
-        if pos[0] > 17.6:
+        if pos[0] > 19.8:      # past beam0 (x=19), the barrier the baseline cannot pass
             crossed = True
         if pos[2] < 0.35:
             grounded += 1

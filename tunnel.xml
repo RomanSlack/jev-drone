@@ -1,0 +1,79 @@
+<mujoco model="tunnel">
+  <include file="mujoco_menagerie/skydio_x2/x2.xml"/>
+
+  <statistic extent="18" center="60 0 3"/>
+
+  <option timestep="0.002" density="1.2" viscosity="1.8e-5"/>
+  <visual>
+    <global fovy="50" offwidth="1400" offheight="900"/>
+    <headlight diffuse=".95 .95 .95" ambient=".60 .60 .62"/>
+    <map znear="0.0025" zfar="3.0"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".16 .18 .24" rgb2=".05 .06 .09" width="512" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".30 .32 .36" rgb2=".38 .40 .45" width="512" height="512"/>
+    <material name="grid" texture="grid" texrepeat="150 6" reflectance="0"/>
+    <material name="wall"  rgba=".52 .55 .60 1"/>
+    <material name="side"  rgba=".95 .60 .10 1"/>
+    <material name="over"  rgba=".20 .70 .85 1"/>
+    <material name="under" rgba=".70 .35 .90 1"/>
+    <material name="car"   rgba=".95 .15 .10 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 5.5" dir="0 0 -1" directional="true" diffuse=".70 .70 .72"/>
+    <light pos="11 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="33 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="55 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="77 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="99 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="121 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="143 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="165 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="187 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="209 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="231 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="253 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="275 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="297 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="319 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="341 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="363 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="385 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="407 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="429 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="451 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="473 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="495 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="517 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="539 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="561 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="583 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="605 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <light pos="627 0 6.4" dir="0 0 -1" diffuse=".45 .45 .48"/>
+    <geom name="floor_t" type="box" material="grid" size="310.0 6.5 .1" pos="310.0 0 -.1"/>
+    <geom name="ceil_t" type="box" material="wall" size="310.0 6.5 .1" pos="310.0 0 7.0"/>
+    <geom name="wallL" type="box" material="wall" size="310.0 .1 3.5" pos="310.0 6.5 3.5"/>
+    <geom name="wallR" type="box" material="wall" size="310.0 .1 3.5" pos="310.0 -6.5 3.5"/>
+    <geom name="ob0" type="box" material="side" size=".35 3.6 2.825" pos="70.0 2.9 4.175000000000001"/>
+    <geom name="ob1" type="box" material="under" size=".35 6.5 2.0" pos="104.0 0 5.0"/>
+    <geom name="ob2" type="box" material="side" size=".35 3.6 2.825" pos="138.0 -2.9 4.175000000000001"/>
+    <geom name="ob3" type="box" material="over" size=".35 6.5 1.125" pos="172.0 0 2.475"/>
+    <geom name="ob4" type="box" material="side" size=".35 3.6 2.825" pos="206.0 -2.9 4.175000000000001"/>
+    <geom name="ob5" type="box" material="under" size=".35 6.5 2.0" pos="240.0 0 5.0"/>
+    <geom name="ob6" type="box" material="side" size=".35 3.6 2.825" pos="274.0 2.9 4.175000000000001"/>
+    <geom name="ob7" type="box" material="over" size=".35 6.5 1.125" pos="308.0 0 2.475"/>
+    <geom name="ob8" type="box" material="side" size=".35 3.6 2.825" pos="342.0 2.9 4.175000000000001"/>
+    <geom name="ob9" type="box" material="under" size=".35 6.5 2.0" pos="376.0 0 5.0"/>
+    <geom name="ob10" type="box" material="side" size=".35 3.6 2.825" pos="410.0 -2.9 4.175000000000001"/>
+    <geom name="ob11" type="box" material="over" size=".35 6.5 1.125" pos="444.0 0 2.475"/>
+    <geom name="ob12" type="box" material="side" size=".35 3.6 2.825" pos="478.0 -2.9 4.175000000000001"/>
+    <geom name="ob13" type="box" material="under" size=".35 6.5 2.0" pos="512.0 0 5.0"/>
+    <geom name="ob14" type="box" material="side" size=".35 3.6 2.825" pos="546.0 2.9 4.175000000000001"/>
+    <body name="car" mocap="true" pos="20 0 .55">
+      <geom name="car_geom" type="box" material="car" size="1.1 .6 .55"/>
+      <geom name="car_fin" type="box" material="car" size=".1 .1 .35" pos="-.6 0 .9"/>
+    </body>
+  </worldbody>
+</mujoco>

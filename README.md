@@ -206,6 +206,14 @@ cost real time:
 - Anything you have already climbed over is not a threat. Obstacle pixels have
   to be filtered by height relative to the aircraft, or the reflex shoves you
   back off the wall you just cleared.
+- **The geometric attitude controller cannot recover from inverted flight, by
+  construction.** Its error term `eR = 0.5*vee(Rd^T R - R^T Rd)` has magnitude
+  proportional to **sin(theta)**: it peaks at 90 deg and falls to *zero* at 180 deg,
+  so an upside-down aircraft sits at a stationary point with no restoring torque.
+  That is the 179-degree lawn-dart. Swapping it for a quaternion error (magnitude
+  `sin(theta/2)`, monotonic all the way to 180 deg) gives maximal righting torque
+  exactly when it is needed most - verified recovering from 179 deg. This one fix
+  also took the obstacle course from 77 m to 88 m.
 - **A lost target needs a world-frame estimate, not a bearing.** A camera
   bearing is meaningless the moment the target leaves frame, so the drone swept
   blindly around a stale heading and sat still while the rover drove away. Fix:
@@ -229,6 +237,33 @@ cost real time:
   judgment requests hit a full queue and the model influenced nothing. If you
   are putting a network call in a control loop, pace the sim to real time or you
   are not testing anything.
+
+## The tunnel experiment (`tunnel.py`) - partial
+
+A separate, harder setup: a 620 m enclosed tunnel, 15 obstacles, chasing a car,
+with **Jev as the only navigator** - no reflex and no hand-written avoidance at
+all. Two graded `Score` questions ("how hard to steer, and which way", "should it
+change height") map straight onto the control command, so the answer *is* the
+steering signal rather than a label to act on.
+
+Measured throughput, live in a 500 Hz control loop:
+
+| | |
+|---|---|
+| decision latency | **0.118 s** median, 0.164 s p90 |
+| sequential ceiling | 7.4 Hz |
+| pipelined (4-6 workers) | **21 decisions/s sustained**, zero errors in ~2000 calls |
+
+**The honest reaction budget at 9 m/s**: perception 0.03 s, Jev 0.118 s, decision
+age 0.024 s, and the **airframe 0.70 s to translate 2 m sideways**. The model is
+13% of the loop; the vehicle is 80%. Making the decisions faster cannot help, and
+commanding the airframe harder is what makes it tumble.
+
+Status: the aircraft is now stable (flies full episodes, never hits the floor,
+recovers from >90 deg), and in the best runs it dodged with **zero collisions and
+94% target visibility**. But it does not reliably clear the whole tunnel - it
+tends to over-commit a dodge and end up against a wall. This is written up as a
+partial result, not a working system.
 
 ## License
 
