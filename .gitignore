@@ -19,13 +19,6 @@ mujoco_menagerie/
 *.mp4
 *.npy
 *.log
-frame_*.png
-shot_*.png
-f_*.png
-cam_test.png
-hud_test.png
-climb_frame.png
-jev_still.png
-
-# keep documentation images
+# any scratch image at the repo root; documentation images live in docs/
+/*.png
 !docs/*.png
