@@ -1,0 +1,72 @@
+<mujoco model="follow_avoid_arena">
+  <include file="mujoco_menagerie/skydio_x2/x2.xml"/>
+
+  <statistic extent="20" center="30 0 2"/>
+
+  <option timestep="0.002" density="1.2" viscosity="1.8e-5"/>
+  <visual>
+    <global fovy="50" offwidth="1400" offheight="900"/>
+    <headlight diffuse=".7 .7 .7" ambient=".4 .4 .4"/>
+    <map znear="0.0025" zfar="3.0"/>  <!-- fractions of stat.extent, NOT metres -->
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".5 .65 .85" rgb2=".1 .15 .25" width="512" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".22 .24 .26" rgb2=".28 .30 .33" width="512" height="512"/>
+    <material name="grid" texture="grid" texrepeat="18 18" reflectance="0"/>
+    <material name="pillar" rgba=".55 .55 .60 1"/>
+    <material name="rover"  rgba=".95 .15 .10 1"/>
+    <material name="mover"  rgba=".95 .60 .10 1"/>
+    <material name="gate"   rgba=".20 .70 .85 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 12" dir="0 0 -1" directional="true" diffuse=".6 .6 .6"/>
+    <geom name="floor" type="plane" size="90 90 .05" material="grid"/>
+
+    <!-- ================= OBSTACLE COURSE =================
+         Five stations the rover leads the drone through. Each one breaks a
+         different assumption: slalom (steering), beam (no lateral gap at all),
+         turnstiles (moving, must be timed), gate (a gap that slides), cluster.
+    -->
+
+    <!-- 1. slalom -->
+    <geom name="p0" type="cylinder" material="pillar" size=".35 2.5" pos="  7  1.8 2.5"/>
+    <geom name="p1" type="cylinder" material="pillar" size=".35 2.5" pos=" 10 -1.8 2.5"/>
+    <geom name="p2" type="cylinder" material="pillar" size=".35 2.5" pos=" 13  1.8 2.5"/>
+
+    <!-- 2. low beam: spans the corridor, must be flown OVER -->
+    <geom name="beam0" type="capsule" material="mover" size=".50 45" euler="90 0 0" pos="19 0 1.60"/>
+
+    <!-- 3. turnstiles: arms that sweep across the lane -->
+    <body name="arm0" mocap="true" pos="26 0 1.7">
+      <geom name="arm0_geom" type="capsule" material="mover" size=".22 2.6" euler="90 0 0"/>
+    </body>
+    <body name="arm1" mocap="true" pos="31 0 1.7">
+      <geom name="arm1_geom" type="capsule" material="mover" size=".22 2.6" euler="90 0 0"/>
+    </body>
+
+    <!-- 4. sliding gate: two shutters leaving a gap that moves -->
+    <body name="gateL" mocap="true" pos="38 31.2 4.5">
+      <geom name="gateL_geom" type="box" material="gate" size=".25 30.0 4.5"/>
+    </body>
+    <body name="gateR" mocap="true" pos="38 -31.2 4.5">
+      <geom name="gateR_geom" type="box" material="gate" size=".25 30.0 4.5"/>
+    </body>
+
+    <!-- 5. second low beam, then a dense cluster -->
+    <geom name="beam1" type="capsule" material="mover" size=".50 45" euler="90 0 0" pos="44 0 1.60"/>
+    <geom name="p3" type="cylinder" material="pillar" size=".35 2.5" pos=" 50  1.5 2.5"/>
+    <geom name="p4" type="cylinder" material="pillar" size=".35 2.5" pos=" 51 -1.6 2.5"/>
+    <geom name="p5" type="cylinder" material="pillar" size=".35 2.5" pos=" 54  0.2 2.5"/>
+    <geom name="p6" type="cylinder" material="pillar" size=".35 2.5" pos=" 57 -2.2 2.5"/>
+    <geom name="p7" type="cylinder" material="pillar" size=".35 2.5" pos=" 58  2.0 2.5"/>
+
+    <!-- moving ground target the drone must follow -->
+    <body name="rover" mocap="true" pos="6 0 .2">
+      <geom name="rover_geom" type="box" material="rover" size=".35 .25 .2"/>
+      <geom name="rover_mast" type="box" material="rover" size=".06 .06 .35" pos="0 0 .5"/>
+    </body>
+
+  </worldbody>
+</mujoco>

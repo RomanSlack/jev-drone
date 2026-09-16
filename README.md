@@ -1,0 +1,189 @@
+# jev-drone
+
+An autonomous quadrotor flies a five-station obstacle course in MuJoCo using
+**only its onboard camera**. A small judgment model ([TypeSafe](https://typesafe.ai)'s
+Jev) sits at ~2.5 Hz and decides *what the situation means*; everything
+time-critical stays in ordinary code.
+
+![climbing over a barrier](docs/climb.png)
+
+The drone is the Skydio X2 from [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie)
+- a real airframe with four rotors, flown by a geometric controller. Nothing
+about the flight is scripted.
+
+## The idea
+
+Jev is **not** a vision model. It takes JSON and returns typed answers with
+probabilities. So it cannot be the perception layer, and it cannot run at
+control rate. What it can do is answer small questions about a situation that
+ordinary code finds hard to phrase.
+
+```
+ 500 Hz   geometric controller       flight.Pilot    thrust-priority mixing, slew-limited
+  50 Hz   guidance + safety reflex   run.Guidance    ALWAYS owns safety
+  15 Hz   camera -> symbolic scene   flight.Eye      depth + segmentation, no ground truth
+~2.5 Hz   tactical judgment          tactics.py      Jev, advisory only
+```
+
+Classical CV turns the depth and segmentation buffers into a compact scene:
+five forward range sectors, the height of whatever is blocking the path,
+whether its top edge is even visible, and where the target is. Jev reads that
+and answers three questions in one call:
+
+| question | type | options |
+|---|---|---|
+| `maneuver` | **Choice** | hold_course / gap_left / gap_right / climb / brake / reacquire |
+| `risk` | **Score** | clear and open -> tight -> about to hit something |
+| `target_truly_lost` | **Noul** | genuinely lost, or just briefly occluded? |
+
+Code decides *when* to ask. On an open corridor with the target in view there
+is nothing to decide, so no call is made. Scenes are fingerprinted so an
+unchanged situation reuses the last judgment. A typical 65 s flight costs about
+110 calls.
+
+**Code keeps the veto.** A hard reflex layer runs at 50 Hz and overrides any
+judgment when something is close. Jev can propose `climb`, but code refuses it
+unless the obstruction's measured top edge is actually within the aircraft's
+climb ceiling.
+
+## The course
+
+Five stations, each breaking a different assumption:
+
+1. **Slalom** - ordinary steering around pillars
+2. **Low beam** - spans the whole corridor. No lateral gap exists at any width, so "go around" is not available. It must be flown *over*.
+3. **Turnstiles** - arms sweeping across the lane. Moving, must be timed.
+4. **Sliding gate** - a 2.4 m gap that slides sideways. Too tall to climb, so it must be threaded.
+5. **Cluster** - dense pillars
+
+![chasing through the course](docs/chase.png)
+
+## Results
+
+The ablation is the same stack with the Jev call disabled, falling back to a
+greedy "steer toward the wider side" heuristic. That baseline is *safe but
+stuck*: it never crashes and it never gets past station 2, because going over
+an obstacle is not something it can express.
+
+| | baseline (no Jev) | Jev engaged |
+|---|---|---|
+| furthest point reached | 16.9 / 16.7 / 16.9 m | **35.8 m** |
+| target kept in view | ~28% | **60.6%** |
+| collisions | 1 / 1 / 1 | **0** |
+| time pinned in reflex | 42-77% | **13%** |
+
+Jev clears station 2 by choosing `climb` at p=0.93-0.96 and threads the gate by
+choosing a gap.
+
+**Honest caveats.** The Jev column is a single 65 s run, not a seed-matched
+average. On an earlier, simpler arena a matched 3-seed comparison showed **no
+advantage** for Jev (it crossed 0/3, same as baseline) - the extra maneuvering
+cost target visibility. Run-to-run variance is large. The claim this repo
+supports is narrow and specific: *the baseline is structurally incapable of the
+maneuver, and Jev supplies it.* It is not "the model makes the drone better at
+everything".
+
+### The judgments themselves are good
+
+On hand-built scenes, 6 of 7 correct with strong probabilities:
+
+```
+LOW BARRIER, all 5 blocked, top 0.45m  -> climb        p=0.93  risk=1.42
+TALL PILLAR ahead, right wide open     -> gap_right    p=0.72  risk=1.53
+TALL PILLAR ahead, left wide open      -> gap_left     p=0.40  risk=1.58
+TARGET GONE 7s, wide open              -> reacquire    p=0.96  lost=0.85
+BOXED IN, close on all sides, tall     -> brake        p=0.84  risk=1.89
+ALL CLEAR, target dead ahead           -> hold_course  p=0.82  risk=0.46
+BRIEF OCCLUSION 0.6s, path clear       -> (muddy, p=0.24)      lost=0.12
+```
+
+The one muddy case is instructive: the **Choice** was unconfident, but the
+**Noul** answered it cleanly (`target_truly_lost=0.12`). So the search
+behaviour is gated on the Noul, not on the Choice. Use the primitive that
+actually fits the question.
+
+### The state has to contain the answer
+
+Jev initially refused to ever pick `climb`. That was correct. The state was
+five horizontal range sectors - it contained no vertical information at all, so
+"fly over it" was not an inferable option. Adding the obstruction's top-edge
+height, whether that top edge is visible to the camera, and the aircraft's own
+climb ceiling moved `climb` from never-chosen to p=0.93.
+
+That was a state-design bug, not a model failure. It is the single most useful
+thing this project taught.
+
+## Run it
+
+```bash
+./setup.sh                      # venv + fetch the Skydio X2 model
+cp .env.example .env            # then put your key in it
+```
+
+```bash
+set -a && . ./.env && set +a
+export MUJOCO_GL=glfw           # or egl on a headless box
+
+.venv/bin/python run.py --seconds 65 --seeds 1              # Jev engaged
+.venv/bin/python run.py --no-jev --fast --seconds 65 --seeds 0 1 2   # ablation (free)
+.venv/bin/python run.py --seconds 65 --seeds 1 --video course.mp4    # + telemetry video
+TRACE=1 .venv/bin/python run.py --seconds 65 --seeds 1      # print every judgment
+```
+
+A video run also writes `course.mp4.tape.npy`. Re-cut the visuals from that
+without flying again, and without spending any API credits:
+
+```bash
+.venv/bin/python replay.py course.mp4.tape.npy out.mp4 --from 12 --to 30
+```
+
+Every knob a human should review lives at the top of `tactics.py`: the three
+questions, the option rubrics, and every threshold that changes how the
+aircraft reacts to a judgment.
+
+## Layout
+
+| file | what it is |
+|---|---|
+| `world.xml` | the arena and the five stations |
+| `flight.py` | controller + camera-to-scene perception |
+| `run.py` | guidance, safety reflex, episode loop, metrics |
+| `tactics.py` | **everything Jev-facing**: questions, rubrics, thresholds |
+| `hud.py` | telemetry overlay |
+| `replay.py` | re-render a recorded flight, no physics, no API calls |
+
+## Simulator bugs worth stealing
+
+Most of the work was the simulator and the controller, not the model. These all
+cost real time:
+
+- MuJoCo's `map znear/zfar` are **fractions of `stat.extent`**, not metres. In a
+  40 m arena `znear=0.05` blinded the drone inside 1.93 m, so the safety reflex
+  never once fired.
+- Image-right is **-y** for a camera looking down +x, so the target bearing sign
+  was inverted and the yaw loop became positive feedback: the drone turned
+  *away* from what it was chasing.
+- The camera sits inside the airframe, so the drone saw **its own body** as an
+  obstacle at 3.94 m until own-body geoms were masked out.
+- The target's mast is a separate geom from its hull. Identifying the target by
+  geom instead of by body made the drone avoid its own target.
+- Clipping negative motor commands destroys thrust *and* torque together.
+  Thrust-priority mixing plus a slew-limited velocity command took peak tilt
+  from 84 deg (tumble, unrecoverable) to a 40 deg transient.
+- Anything you have already climbed over is not a threat. Obstacle pixels have
+  to be filtered by height relative to the aircraft, or the reflex shoves you
+  back off the wall you just cleared.
+- A wide lens helps you *see* the target but ruins threat assessment, because
+  things 60 deg off the nose were never in the way. Separate the tracking FOV
+  from the threat cone.
+- Re-applying a heading correction at 50 Hz off a 15 Hz camera applies the same
+  error three times and spins the aircraft. Latch an absolute setpoint per
+  camera frame.
+- **Sim time is not wall-clock time.** The sim ran 10x real time, so 152 of 182
+  judgment requests hit a full queue and the model influenced nothing. If you
+  are putting a network call in a control loop, pace the sim to real time or you
+  are not testing anything.
+
+## License
+
+MIT. The Skydio X2 model comes from MuJoCo Menagerie under its own license.

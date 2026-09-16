@@ -1,0 +1,31 @@
+# ---- secrets: never commit ----
+.env
+.env.*
+!.env.example
+*.key
+*_key*
+secrets*
+
+# ---- local env ----
+.venv/
+__pycache__/
+*.py[cod]
+
+# ---- vendored upstream model (fetched by setup.sh) ----
+mujoco_menagerie/
+/assets
+
+# ---- run artifacts ----
+*.mp4
+*.npy
+*.log
+frame_*.png
+shot_*.png
+f_*.png
+cam_test.png
+hud_test.png
+climb_frame.png
+jev_still.png
+
+# keep documentation images
+!docs/*.png
