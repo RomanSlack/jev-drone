@@ -72,7 +72,14 @@ class Pilot:
         give_up = float(np.clip((tilt - np.deg2rad(55.0)) / np.deg2rad(25.0), 0.0, 1.0))
         a_h = a_h * (1.0 - give_up)
 
-        a_des = np.array([a_h[0], a_h[1], a[2] + G])
+        # A quadrotor cannot thrust downward. On a hard commanded descent a[2]+G
+        # goes NEGATIVE, so b3 = a_des/|a_des| points at the floor and the controller
+        # dutifully commands an inverted attitude. The aircraft flips, drops into
+        # attitude recovery (which zeroes horizontal accel) and then drifts sideways
+        # with no lateral control at all -- while the navigator is still calling for
+        # a dodge. Descent is limited by gravity and drag, not by pointing down.
+        az = max(a[2] + G, 0.35 * G)
+        a_des = np.array([a_h[0], a_h[1], az])
 
         b3 = a_des / np.linalg.norm(a_des)
         # Slew-limit the DESIRED thrust axis. The velocity loop can swing R_des by

@@ -214,6 +214,21 @@ cost real time:
   `sin(theta/2)`, monotonic all the way to 180 deg) gives maximal righting torque
   exactly when it is needed most - verified recovering from 179 deg. This one fix
   also took the obstacle course from 77 m to 88 m.
+- **A quadrotor cannot thrust downward, and the controller has to know that.** On a
+  hard commanded descent `a_z + G` goes negative, so the desired thrust axis
+  `b3 = a_des/|a_des|` points at the floor and the controller faithfully commands an
+  INVERTED attitude. The aircraft flips, drops into attitude recovery (which zeroes
+  horizontal acceleration) and then drifts sideways with no lateral control at all -
+  while the navigator is still correctly calling for a dodge. Clamping `a_des[2]`
+  positive was worth more than every gain-tuning attempt combined.
+- **Lateral control needs a POSITION loop, not a velocity command.** Commanding a
+  lateral velocity and holding it until the next judgment gives the aircraft no notion
+  of where to stop: it crosses the whole corridor and buries itself in the far wall.
+  And the position it servos to has to be *estimated*: the wall measurement vanishes
+  exactly when it matters (an obstacle fills the view), and a naive "assume centred"
+  fallback had the aircraft convinced it was mid-tunnel while pinned against a wall at
+  y=+5.5 m. Dead-reckon laterally and correct only on plausible wall readings: 0.07 m
+  median error against ground truth.
 - **A lost target needs a world-frame estimate, not a bearing.** A camera
   bearing is meaningless the moment the target leaves frame, so the drone swept
   blindly around a stale heading and sat still while the rover drove away. Fix:

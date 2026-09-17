@@ -34,8 +34,10 @@ class Nav:
         self.commit_until = -1.0
         self.commit = "hold_course"
         self.last_bearing = 0.0
+        self.y_est = 0.0
+        self.half_est = 6.5
 
-    def __call__(self, scene, judg, yaw, pos, t, fresh):
+    def __call__(self, scene, judg, yaw, pos, t, fresh, vy=0.0, dt=0.01):
         """Body yaw stays locked to the tunnel axis so the camera always looks
         down the corridor. Turning to face the car would aim the camera at a
         wall and the free-space reading would become meaningless."""
@@ -59,33 +61,56 @@ class Nav:
         st = judg.get("steer", 2.0) if fresh_enough else 2.0
         ht = judg.get("height", 2.0) if fresh_enough else 2.0
         risk = judg.get("risk", 0.0) if fresh_enough else 0.0
+        turn = float(np.clip((2.0 - st) / 2.0, -1.0, 1.0))     # +1 = hard left
+        turn = float(np.sign(turn) * abs(turn) ** 0.7)         # sharpen mild commitments
+        rise = float(np.clip((ht - 2.0) / 2.0, -1.0, 1.0))     # +1 = climb
+        rise = float(np.sign(rise) * abs(rise) ** 0.5)
 
         # The gap is ~5.8 m wide and needs a ~3.6 m move with 3+ seconds of warning.
         # 5.4 m/s of lateral authority crosses the whole 13 m tunnel in 1.6 s and
         # buries the aircraft in the far wall before it can arrest.
-        authority = 0.55 * max(fwd, 5.0)
-        turn = float(np.clip((2.0 - st) / 2.0, -1.0, 1.0))     # +1 = hard left
-        rise = float(np.clip((ht - 2.0) / 2.0, -1.0, 1.0))     # +1 = climb
-        # Square-root shaping: a mild "ease down" (score 1.6 -> rise -0.20) mapped
-        # linearly onto 2.99 m, and the baffle bottom is at 3.00 m -- aiming exactly
-        # at the edge. The model owns the sign and the ordering; the controller makes
-        # any expressed preference actually clear the obstacle.
-        rise = float(np.sign(rise) * abs(rise) ** 0.5)
-        w = min(1.0, abs(turn) * 1.6)                          # how much it wants to act
+        authority = 0.6 * max(fwd, 5.0)
 
-        lat = (1.0 - w) * track + authority * turn
+        # LATERAL POSITION LOOP.
+        # Commanding a lateral VELOCITY and holding it until the next judgment gives
+        # the aircraft no notion of where to stop: it crosses the whole 13 m tunnel
+        # and buries itself in the far wall. The score instead picks a target lateral
+        # POSITION in the corridor, and a P-D loop flies to it and holds. Position is
+        # measured, not known: it comes from the two wall distances.
+        # Complementary filter on lateral position. The wall measurement vanishes
+        # exactly when it matters -- an obstacle filling the view hides both walls --
+        # and the naive fallback ("assume centred") had the aircraft convinced it was
+        # mid-tunnel while it was pinned against the left wall at y=+5.5. So integrate
+        # lateral velocity and correct it only when a wall reading is plausible.
+        self.y_est += vy * dt
+        rl, rr = scene.get("room_left_m"), scene.get("room_right_m")
+        half = self.half_est
+        if rl is not None and rr is not None and 4.0 < 0.5 * (rl + rr) < 9.0:
+            self.y_est = 0.85 * self.y_est + 0.15 * (0.5 * (rr - rl))
+            self.half_est = 0.9 * self.half_est + 0.1 * (0.5 * (rl + rr))
+            half = self.half_est
+        y_now = float(np.clip(self.y_est, -half, half))
+        usable = max(half - 1.6, 1.0)             # keep off the walls
+
+        # Blending the dodge against car-tracking by |turn| alone lets the car pull
+        # the target back onto the obstacle: with the car to the left and turn=-0.57,
+        # the net target was -0.8 m when clearing the slab needed -2.8 m. Once the
+        # model expresses a real preference, the dodge has to win outright.
+        want = float(np.clip(abs(turn) * 2.2, 0.0, 1.0))
+        y_track = y_now + off_lateral             # where the car is, laterally
+        y_goal = turn * usable                    # where the dodge wants to be
+        y_target = (1.0 - want) * y_track + want * y_goal
+        y_target = float(np.clip(y_target, -usable, usable))
+
+        lat = 1.5 * (y_target - y_now) - 0.55 * vy
         lat = float(np.clip(lat, -authority, authority))
+
         self.alt_sp = float(np.clip(CRUISE_ALT + 1.55 * rise, DIVE_ALT, CLIMB_ALT))
         # You cannot slide sideways while ramming a wall: let the risk score bleed
         # off forward speed hard, so the lateral command actually has authority.
         fwd *= 1.0 - 0.7 * float(np.clip(risk - 1.1, 0.0, 1.0))
-        mv = "steer %+.2f  height %+.2f" % (turn, rise)
+        mv = "st%+.2f y=%+.1f->%+.1f lat%+.1f" % (turn, y_now, y_target, lat)
 
-        # keep clear of the tunnel walls: they are at +/-4.5
-        if pos[1] > 5.3:
-            lat = min(lat, -0.5)
-        elif pos[1] < -5.3:
-            lat = max(lat, 0.5)
 
         vz = float(np.clip(2.6 * (self.alt_sp - pos[2]), -3.0, 4.5))
         # Staying airborne is flight control, not obstacle avoidance: a hard tilt
@@ -171,7 +196,7 @@ def episode(v_car=8.0, seconds=40.0, use_jev=True, workers=4, video=None, seed=0
         if i % 5 == 0 and scene:              # 100 Hz guidance
             if tac:
                 judg = tac.read(t)
-            v_des, yaw_cmd, mv = nav(scene, judg, yaw, pos, t, fresh)
+            v_des, yaw_cmd, mv = nav(scene, judg, yaw, pos, t, fresh, float(d.qvel[1]), 5 * dt)
             if TRACE and fresh:
                 print("  t=%5.2f x=%6.1f y=%5.2f z=%4.2f %-11s risk=%.2f lvl=%4.1f up=%4.1f dn=%4.1f sec=%s"
                       % (t, pos[0], pos[1], pos[2], mv, judg.get("risk", 0),
