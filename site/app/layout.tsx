@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { IBM_Plex_Sans, Source_Serif_4, IBM_Plex_Mono } from "next/font/google";
 import { SITE_URL, REPO_URL, TITLE, HEADLINE, DESCRIPTION } from "@/lib";
 import "./globals.css";
@@ -99,6 +100,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a className="skip" href="#main">Skip to content</a>
         {children}
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        <Analytics />
       </body>
     </html>
   );
