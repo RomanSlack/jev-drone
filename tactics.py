@@ -24,7 +24,7 @@ THRESHOLDS = {
     "climb_steps": 150,       # ~3s: long enough to rise AND cross, not just bob up
     "commit_steps": 55,       # ~1.4s at 50Hz: commit to a maneuver instead of chattering
     "override_risk": 1.7,     # ...unless things get this dangerous, then re-decide now
-    "really_lost": 0.5,       # Noul above which we stop trusting the remembered bearing       # hard cap per episode, so a bug cannot run up a bill
+    "really_lost": 0.5,       # Noul above which we stop trusting the remembered bearing
 }
 
 # The drone's own capabilities. Without this the model cannot know that "climb"
@@ -119,6 +119,7 @@ class Tactician:
         self.budget = budget
         self.model = model
         self.calls = 0
+        self.attempts = 0
         self.skipped = 0
         self.errors = 0
         self.n_offer = 0
@@ -154,7 +155,7 @@ class Tactician:
     def offer(self, scene, now):
         """Non-blocking. Hand the latest scene over if it's worth a call."""
         self.n_offer += 1
-        if self.calls >= self.budget or now - self._last_sent < self.min_dt:
+        if self.attempts >= self.budget or now - self._last_sent < self.min_dt:
             self.n_ratelimited += 1
             return
         key = self._key(scene)
@@ -180,6 +181,7 @@ class Tactician:
             except queue.Empty:
                 continue
             t0 = time.time()
+            self.attempts += 1  # counts against the budget whether or not the call succeeds
             try:
                 r = self.client.system_one(state=build_state(scene), model=self.model, questions=QUESTIONS)
                 a = r.answers
@@ -199,6 +201,10 @@ class Tactician:
             except Exception as e:                    # degrade, never crash the flight
                 self.errors += 1
                 self.last_error = f"{type(e).__name__}: {e}"[:160]
+                # A failed call replaces the cached judgment with an error placeholder, so the
+                # next offer() for this same scene must not be skipped as "unchanged" - otherwise
+                # a static scene never gets re-asked and never recovers a real judgment.
+                self._last_key = None
                 with self._lock:
                     self._latest = dict(DEFAULT, source=f"error:{type(e).__name__}")
 
@@ -212,7 +218,7 @@ class Tactician:
 
     def stats(self):
         lat = sorted(self.latency)
-        return {"calls": self.calls, "skipped_unchanged": self.skipped, "errors": self.errors,
+        return {"calls": self.calls, "attempts": self.attempts, "skipped_unchanged": self.skipped, "errors": self.errors,
                 "last_error": self.last_error, "tokens": self.tokens,
                 "offers": self.n_offer, "rate_limited": self.n_ratelimited, "queue_full": self.n_full,
                 "median_latency_s": round(lat[len(lat) // 2], 3) if lat else None,
