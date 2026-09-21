@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { REPO_URL, X_POST_URL } from "@/lib";
+import { REPO_URL, X_POST_URL, AUTHOR_URL, CONTACT_URL } from "@/lib";
 import { Toc } from "@/components/toc";
 import { Figure, RateStack, LoopDiagram, CourseMap, AttitudeCurve, ResultsChart, ReactionBudget, SceneIO } from "@/components/figures";
 
@@ -90,7 +90,7 @@ export default function Page() {
             <a className="btn btn-quiet" href="#results">Jump to results</a>
           </div>
           <dl className="meta">
-            <div><dt>Author</dt><dd>Roman Slack</dd></div>
+            <div><dt>Author</dt><dd><a href={AUTHOR_URL} rel="author">Roman Slack</a></dd></div>
             <div><dt>Published</dt><dd><time dateTime="2026-09-16">16 Sep 2026</time></dd></div>
             <div><dt>Stack</dt><dd>MuJoCo 3, Python, TypeSafe Jev</dd></div>
             <div><dt>License</dt><dd>MIT, open source</dd></div>
@@ -400,9 +400,11 @@ export MUJOCO_GL=glfw           `}<span className="c"># or egl on a headless box
               <h2>The code, the course and the tapes are all in the repository</h2>
               <div className="actions">
                 <a className="btn btn-primary" href={REPO_URL}><GitHubMark />RomanSlack/jev-drone</a>
+                <a className="btn btn-quiet" href={CONTACT_URL}>Get in touch</a>
               </div>
               <p>
-                MIT licensed. The Skydio X2 model comes from MuJoCo Menagerie under its own license. Jev is a model by{" "}
+                Built by <a href={AUTHOR_URL}>Roman Slack</a>. Questions, or want to work on something like this?{" "}
+                <a href={CONTACT_URL}>Contact me</a>. MIT licensed. The Skydio X2 model comes from MuJoCo Menagerie under its own license. Jev is a model by{" "}
                 <a href="https://typesafe.ai">TypeSafe</a>. Cite as: Roman Slack, &ldquo;jev-drone: a judgment model in a
                 drone&rsquo;s control loop&rdquo;, 2026.
               </p>

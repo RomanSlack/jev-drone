@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { IBM_Plex_Sans, Source_Serif_4, IBM_Plex_Mono } from "next/font/google";
-import { SITE_URL, REPO_URL, TITLE, HEADLINE, DESCRIPTION } from "@/lib";
+import { SITE_URL, REPO_URL, AUTHOR_URL, TITLE, HEADLINE, DESCRIPTION } from "@/lib";
 import "./globals.css";
 
 const display = IBM_Plex_Sans({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-display", display: "swap" });
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     "quaternion attitude control",
     "robotics ablation study",
   ],
-  authors: [{ name: "Roman Slack", url: "https://github.com/RomanSlack" }],
+  authors: [{ name: "Roman Slack", url: AUTHOR_URL }],
   creator: "Roman Slack",
   alternates: { canonical: "/" },
   openGraph: {
@@ -61,8 +61,8 @@ const jsonLd = {
       image: { "@type": "ImageObject", url: `${SITE_URL}/og.png`, width: 1200, height: 630 },
       datePublished: "2026-09-16",
       dateModified: "2026-09-21",
-      author: { "@type": "Person", name: "Roman Slack", url: "https://github.com/RomanSlack" },
-      publisher: { "@type": "Person", name: "Roman Slack", url: "https://github.com/RomanSlack" },
+      author: { "@type": "Person", name: "Roman Slack", url: AUTHOR_URL, sameAs: ["https://github.com/RomanSlack", "https://x.com/RomanSlack1"] },
+      publisher: { "@type": "Person", name: "Roman Slack", url: AUTHOR_URL, sameAs: ["https://github.com/RomanSlack", "https://x.com/RomanSlack1"] },
       inLanguage: "en",
       keywords: "MuJoCo, autonomous drone, quadrotor, obstacle avoidance, judgment model, TypeSafe Jev, control loop",
       mainEntityOfPage: SITE_URL,
@@ -79,7 +79,7 @@ const jsonLd = {
       programmingLanguage: "Python",
       runtimePlatform: "MuJoCo 3",
       license: "https://opensource.org/licenses/MIT",
-      author: { "@type": "Person", name: "Roman Slack" },
+      author: { "@type": "Person", name: "Roman Slack", url: AUTHOR_URL, sameAs: ["https://github.com/RomanSlack", "https://x.com/RomanSlack1"] },
     },
     {
       "@type": "VideoObject",
