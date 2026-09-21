@@ -17,6 +17,7 @@ mujoco_menagerie/
 
 # ---- run artifacts ----
 *.mp4
+!site/public/figures/*.mp4
 *.npy
 *.log
 # any scratch image at the repo root; documentation images live in docs/

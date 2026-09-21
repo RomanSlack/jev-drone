@@ -1,0 +1,9 @@
+# jev-drone
+
+> A camera-only autonomous quadrotor flies a five-station obstacle course in MuJoCo. A small judgment model (TypeSafe Jev) makes tactical choices at about 2.5 Hz; flight control (500 Hz), perception (15 Hz) and a safety reflex with veto (50 Hz) stay in ordinary code.
+
+Key result: with the model disabled the stack is safe but stops at 17.7 m on 3 of 3 seeds, because it cannot express flying over an obstacle. With Jev engaged it clears all 77.5 m with zero collisions and 82% target visibility (single 65 s run; 80 calls, 0.11 s median latency, 96k tokens). An earlier, simpler arena showed no advantage for Jev.
+
+- [Source code and README](https://github.com/RomanSlack/jev-drone): MIT licensed Python, MuJoCo 3
+- [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie): source of the Skydio X2 model
+- [TypeSafe](https://typesafe.ai): provider of the Jev judgment model
