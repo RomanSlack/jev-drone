@@ -108,6 +108,7 @@ class FastTactician:
         self.n = workers or THRESHOLDS["workers"]
         self.budget = budget
         self.calls = self.errors = self.tokens = 0
+        self.attempts = 0
         self.last_error = None
         self.latency = []
         self.staleness = []
@@ -139,7 +140,7 @@ class FastTactician:
         while not self._stop.is_set():
             with self._lock:
                 cur = self._scene
-                if cur is None or cur[3] == seen or self.calls >= self.budget:
+                if cur is None or cur[3] == seen or self.attempts >= self.budget:
                     cur = None
                 else:
                     now = time.time()
@@ -148,6 +149,9 @@ class FastTactician:
                     else:
                         self._last_dispatch = now
                         seen = cur[3]
+                        # Reserve the budget before releasing the lock so concurrent
+                        # workers cannot dispatch more than the configured cap.
+                        self.attempts += 1
             if cur is None:
                 time.sleep(0.004)
                 continue
@@ -185,7 +189,8 @@ class FastTactician:
 
     def stats(self):
         lat = sorted(self.latency)
-        return {"calls": self.calls, "errors": self.errors, "tokens": self.tokens,
+        return {"calls": self.calls, "attempts": self.attempts,
+                "errors": self.errors, "tokens": self.tokens,
                 "workers": self.n, "last_error": self.last_error,
                 "median_latency_s": round(lat[len(lat) // 2], 3) if lat else None,
                 "p90_latency_s": round(lat[int(len(lat) * .9)], 3) if lat else None}
